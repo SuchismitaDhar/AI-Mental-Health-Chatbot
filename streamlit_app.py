@@ -8,7 +8,6 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-from custom_layers import CustomAttention
 from tensorflow.keras.utils import custom_object_scope
 from tensorflow.keras.models import load_model
 
@@ -20,6 +19,48 @@ class NotEqual(Layer):
         super(NotEqual, self).__init__(**kwargs)
     def call(self, inputs):
         return tf.not_equal(*inputs)
+    
+import tensorflow as tf
+from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, Concatenate, Layer
+
+# Custom Attention Layer
+class CustomAttention(Layer):
+    def __init__(self, **kwargs):
+        super(CustomAttention, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        query_seq, key_seq = inputs
+
+        # 1. Calculate attention scores (dot product)
+        # scores shape: (batch_size, query_seq_len, key_seq_len)
+        scores = tf.matmul(query_seq, key_seq, transpose_b=True)
+
+        # 2. Apply mask to scores (if available)
+        # Use getattr for safe access to _keras_mask
+        key_mask = getattr(key_seq, '_keras_mask', None)
+        if key_mask is not None:
+            # Expand mask to (batch_size, 1, key_seq_len) for broadcasting with scores
+            mask_for_scores = tf.expand_dims(tf.cast(key_mask, scores.dtype), 1)
+            # Add a large negative number to masked out scores to effectively zero them out after softmax
+            additive_mask = (1. - mask_for_scores) * -1e9
+            scores += additive_mask
+
+        # Optional: Apply query mask (prevents attention from being given to padded query outputs themselves)
+        query_mask = getattr(query_seq, '_keras_mask', None)
+        if query_mask is not None:
+            # Expand mask to (batch_size, query_seq_len, 1)
+            query_mask_for_scores = tf.expand_dims(tf.cast(query_mask, scores.dtype), 2)
+            additive_query_mask = (1. - query_mask_for_scores) * -1e9
+            scores += additive_query_mask
+
+        # 3. Softmax to get attention weights
+        attention_weights = tf.nn.softmax(scores, axis=-1) # (batch_size, query_seq_len, key_seq_len)
+
+        # 4. Apply attention weights to key_seq (values)
+        # context_vector shape: (batch_size, query_seq_len, key_dim)
+        context_vector = tf.matmul(attention_weights, key_seq)
+
+        return context_vector
     
 with custom_object_scope({'NotEqual': NotEqual, 'CustomAttention': CustomAttention}):
     training_model = load_model("training_model.h5")
