@@ -1,11 +1,26 @@
 import streamlit as st
 import numpy as np
 import pickle
+import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
+
+from keras.utils import custom_object_scope
+from tensorflow.keras.layers import Layer
+
+class NotEqual(Layer):
+    def __init__(self, **kwargs):
+        super(NotEqual, self).__init__(**kwargs)
+    def call(self, inputs):
+        return tf.not_equal(*inputs)
+
+with custom_object_scope({'NotEqual': NotEqual}):
+    from tensorflow.keras.models import load_model
+    training_model = load_model("training_model.h5")
+
 
 # Page config
 st.set_page_config(page_title="Mental Health Companion", page_icon="💙", layout="wide")
@@ -13,8 +28,10 @@ st.set_page_config(page_title="Mental Health Companion", page_icon="💙", layou
 # Load models and tokenizers
 @st.cache_resource
 def load_models():
-    encoder = load_model('encoder_model.h5', compile=False)
-    decoder = load_model('decoder_model.h5', compile=False)
+    encoder = load_model('encoder_model.h5', compile=False,custom_objects={"NotEqual": tf.math.not_equal},
+    safe_mode=False)
+    decoder = load_model('decoder_model.h5', compile=False,custom_objects={"NotEqual": tf.math.not_equal},
+    safe_mode=False)
     
     with open('encoder_tokenizer.pkl', 'rb') as f:
         enc_tokenizer = pickle.load(f)
