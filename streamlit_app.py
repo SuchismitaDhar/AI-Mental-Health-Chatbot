@@ -8,7 +8,11 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-from keras.utils import custom_object_scope
+from custom_layers import CustomAttention
+from tensorflow.keras.utils import custom_object_scope
+from tensorflow.keras.models import load_model
+
+#from keras.utils import custom_object_scope
 from tensorflow.keras.layers import Layer
 
 class NotEqual(Layer):
@@ -16,11 +20,9 @@ class NotEqual(Layer):
         super(NotEqual, self).__init__(**kwargs)
     def call(self, inputs):
         return tf.not_equal(*inputs)
-
-with custom_object_scope({'NotEqual': NotEqual}):
-    from tensorflow.keras.models import load_model
+    
+with custom_object_scope({'NotEqual': NotEqual, 'CustomAttention': CustomAttention}):
     training_model = load_model("training_model.h5")
-
 
 # Page config
 st.set_page_config(page_title="Mental Health Companion", page_icon="💙", layout="wide")
